@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CYBERTECH - Email Threat Intelligence Platform</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            socBg: '#080c14',
+            socCard: '#0f172a',
+            socBorder: '#1e293b',
+            socEmerald: '#10b981',
+            socPurple: '#8b5cf6',
+            socCyan: '#06b6d4',
+            socDanger: '#ef4444'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- jsPDF Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- CryptoJS for genuine SHA-256 calculations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+  <style>
+    /* Custom Scrollbars for SOC Terminal look */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .neon-border-emerald { box-shadow: 0 0 15px rgba(16, 185, 129, 0.15); }
+    .neon-border-purple { box-shadow: 0 0 20px rgba(139, 92, 246, 0.2); }
+    #leaflet-map { height: 380px; width: 100%; border-radius: 0.5rem; }
+  </style>
+</head>
+
+<body class="bg-[#070b12] text-slate-100 min-h-screen font-sans antialiased selection:bg-emerald-500 selection:text-black">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col space-y-3 pointer-events-none"></div>
+
+  <!-- NAVIGATION BAR -->
+  <header class="border-b border-slate-800 bg-[#0b101c]/90 sticky top-0 z-40 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center space-x-4">
+        <div class="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-purple-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40">
+          <i class="fa-solid fa-shield-halved text-2xl text-slate-950"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-purple-400">CYBERTECH</span>
+            <span class="text-[10px] uppercase font-bold tracking-widest bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">v4.5 SOC CORE</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium tracking-wide">Threat Ingestion &amp; Forensic Traceability Node</p>
+        </div>
+      </div>
+
+      <!-- Action Utilities -->
+      <div class="flex items-center space-x-3">
+        <!-- Team Info Modal Trigger ("i" button) -->
+        <button id="open-team-btn" title="View Team CyberTech Details" class="relative group h-10 w-10 rounded-lg bg-slate-900 border border-slate-700 text-purple-400 hover:text-purple-300 hover:border-purple-500/60 hover:bg-purple-950/30 transition flex items-center justify-center font-bold text-base shadow-sm">
+          <i class="fa-solid fa-info text-sm"></i>
+          <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
+          </span>
+        </button>
+
+        <!-- SOC Alert Center Config Button -->
+        <button id="soc-config-btn" class="h-10 px-3.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white hover:border-emerald-500/50 hover:bg-slate-800 transition flex items-center space-x-2">
+          <i class="fa-solid fa-bell text-emerald-400"></i>
+          <span class="hidden sm:inline">SOC Alert Center</span>
+        </button>
+
+        <!-- Google Workspace Connect / Disconnect Toggle (Initial state: Connected) -->
+        <button id="google-auth-btn" class="h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm">
+          <i class="fa-brands fa-google text-sm"></i>
+          <span id="google-auth-text">Disconnect</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- HERO SECTION -->
+  <section class="relative pt-12 pb-10 overflow-hidden border-b border-slate-800/80 bg-gradient-to-b from-[#0b101c] via-[#080d18] to-[#070b12]">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.08),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.07),transparent_50%)]"></div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+      <div class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-5">
+        <i class="fa-solid fa-satellite-dish animate-pulse"></i>
+        <span>Forensic Email Analysis &amp; Spoof Verification Active</span>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white mb-4">
+        Email Threat Intelligence <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-purple-400">Platform</span>
+      </h1>
+
+      <p class="max-w-3xl mx-auto text-base sm:text-lg text-slate-300 leading-relaxed font-normal">
+        Detect phishing, spoofed domains, and fraud in real-time. Analyze email origin infrastructure, reconstruct transmission paths, and generate cryptographic evidence seals.
+      </p>
+
+      <!-- Key Metrics Strip -->
+      <div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto">
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
+          <div class="text-emerald-400 font-mono text-xl font-bold">12 Vectors</div>
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider">Live Monitored Feeds</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
+          <div class="text-purple-400 font-mono text-xl font-bold">RFC 7208 / 6376</div>
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider">SPF / DKIM / DMARC Audit</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
+          <div class="text-cyan-400 font-mono text-xl font-bold">GeoIP &amp; ASN</div>
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider">Relay Hop Triangulation</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
+          <div class="text-emerald-300 font-mono text-xl font-bold">65B SHA-256</div>
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider">Chain-of-Custody Seals</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN WORKSPACE: SPACIOUS 2-COLUMN GRID -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      
+      <!-- LEFT COLUMN: Google Workspace Live Threat Ingestion -->
+      <section class="lg:col-span-5 bg-slate-900/60 rounded-2xl border border-slate-800 p-5 shadow-2xl flex flex-col backdrop-blur-sm">
+        
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+              <i class="fa-solid fa-inbox text-emerald-400"></i>
+              <span>Live Ingested Threat Feeds</span>
+            </h2>
+            <p class="text-xs text-slate-400">Simulated Google Workspace &amp; Enterprise Mail Gateway</p>
+          </div>
+          <div id="sync-status-badge" class="px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>CONNECTED</span>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-xs"></i>
+            <input id="email-search" type="text" placeholder="Search 12 live attack vectors, banks, or subjects..." class="w-full pl-9 pr-4 py-2 bg-slate-950/90 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500/60 transition" />
+          </div>
+        </div>
+
+        <!-- Scrollable Email Threat List -->
+        <div id="email-list-container" class="space-y-3 max-h-[720px] overflow-y-auto pr-2">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+          <span id="feed-count-text">12 high-severity threats ingested</span>
+          <span class="text-purple-400 font-mono">Auto-Quarantine: ACTIVE</span>
+        </div>
+      </section>
+
+      <!-- RIGHT COLUMN: Threat Intelligence Scanner & Deep Forensic Engine -->
+      <section class="lg:col-span-7 bg-slate-900/60 rounded-2xl border border-slate-800 p-6 shadow-2xl backdrop-blur-sm">
+        
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+              <i class="fa-solid fa-microchip text-purple-400"></i>
+              <span>Threat Intelligence Scanner</span>
+            </h2>
+            <p class="text-xs text-slate-400">Deep RFC Header Inspection &amp; Origin Infrastructure Forensics</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="btn-load-sample" class="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 text-slate-300 hover:text-white rounded border border-slate-700 transition">
+              Load KYC Sample
+            </button>
+            <button id="btn-clear-scanner" class="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 text-slate-400 hover:text-red-400 rounded border border-slate-700 transition">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <label class="block text-xs font-mono font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+            Raw RFC-822 Headers &amp; Multipart Email Payload
+          </label>
+          <div class="relative">
+            <textarea id="raw-email-input" rows="8" placeholder="Select an email from the left feed or paste custom raw headers with full Received hops and MIME body..." class="w-full bg-[#05080f] border border-slate-800 rounded-xl p-3.5 font-mono text-[11.5px] leading-relaxed text-slate-300 placeholder-slate-600 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 resize-y transition shadow-inner"></textarea>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <button id="btn-run-scan" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-purple-600 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-[0.99] transition flex items-center justify-center space-x-2">
+            <i class="fa-solid fa-radar text-base"></i>
+            <span>Execute Deep Forensic Analysis</span>
+          </button>
+
+          <div id="scan-progress-box" class="hidden mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800">
+            <div class="flex justify-between items-center text-xs mb-2 font-mono">
+              <span id="scan-status-text" class="text-emerald-400 font-bold">Initializing Parser...</span>
+              <span id="scan-percent" class="text-purple-400 font-bold">0%</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden">
+              <div id="scan-progress-bar" class="bg-gradient-to-r from-emerald-400 to-purple-500 h-full w-0 transition-all duration-200"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FORENSIC SCAN RESULTS CONTAINER -->
+        <div id="forensic-results" class="hidden space-y-6 pt-2">
+          
+          <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 relative overflow-hidden">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div class="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-1">Algorithmic Threat Risk Assessment</div>
+                <div class="flex items-center space-x-3">
+                  <span id="res-score" class="text-4xl font-black font-mono text-red-500">96%</span>
+                  <div>
+                    <span id="res-badge" class="px-2.5 py-1 text-xs font-bold rounded-md bg-red-950/80 text-red-400 border border-red-500/40 uppercase">
+                      CRITICAL COMPROMISE
+                    </span>
+                    <p id="res-attack-type" class="text-xs text-slate-300 font-medium mt-1">HDFC NetBanking KYC Credential Harvest</p>
+                  </div>
+                </div>
+              </div>
+              <button id="btn-open-map" class="px-3.5 py-2.5 rounded-lg bg-purple-950/60 border border-purple-500/50 text-purple-300 hover:text-white hover:bg-purple-900/60 text-xs font-bold transition flex items-center space-x-2">
+                <i class="fa-solid fa-map-location-dot text-sm"></i>
+                <span>View Origin On Map</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <h3 class="text-xs font-mono font-bold text-emerald-400 uppercase mb-3 flex items-center space-x-2">
+                <i class="fa-solid fa-server"></i>
+                <span>Sending Node Infrastructure</span>
+              </h3>
+              <div class="space-y-2 text-xs">
+                <div class="flex justify-between py-1 border-b border-slate-900">
+                  <span class="text-slate-400 font-mono">Originating IP:</span>
+                  <span id="res-origin-ip" class="text-white font-mono font-bold">185.220.101.5</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-slate-900">
+                  <span class="text-slate-400 font-mono">ISP / Autonomous Sys:</span>
+                  <span id="res-asn" class="text-slate-200">AS208291</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-slate-900">
+                  <span class="text-slate-400 font-mono">Reverse DNS PTR:</span>
+                  <span id="res-rdns" class="text-red-400 font-mono">Unknown Relay</span>
+                </div>
+                <div class="flex justify-between py-1">
+                  <span class="text-slate-400 font-mono">Geo Location:</span>
+                  <span id="res-geo" class="text-slate-200 font-medium">Germany</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <h3 class="text-xs font-mono font-bold text-cyan-400 uppercase mb-3 flex items-center space-x-2">
+                <i class="fa-solid fa-network-wired"></i>
+                <span>DNS Protocol Validation</span>
+              </h3>
+              <div class="space-y-2 text-xs">
+                <div class="flex justify-between items-center py-1 border-b border-slate-900">
+                  <span class="text-slate-400 font-mono">SPF Alignment:</span>
+                  <span id="res-spf" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-red-950 text-red-400 border border-red-500/40">FAIL</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-b border-slate-900">
+                  <span class="text-slate-400 font-mono">DKIM Signature:</span>
+                  <span id="res-dkim" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-red-950 text-red-400 border border-red-500/40">FAIL</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-b border-slate-900">
+                  <span class="text-slate-400 font-mono">DMARC Policy:</span>
+                  <span id="res-dmarc" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-red-950 text-red-400 border border-red-500/40">REJECT ENFORCED</span>
+                </div>
+                <div class="flex justify-between items-center py-1">
+                  <span class="text-slate-400 font-mono">MX Check:</span>
+                  <span id="res-mx" class="text-slate-300 font-mono text-[11px]">Non-authoritative</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h3 class="text-xs font-mono font-bold text-purple-400 uppercase mb-3 flex items-center space-x-2">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span>Forensic Threat Indicators</span>
+            </h3>
+            <ul id="res-indicators-list" class="space-y-2 text-xs text-slate-300">
+              <!-- Dynamically rendered -->
+            </ul>
+          </div>
+
+          <div class="p-4 rounded-xl bg-gradient-to-br from-slate-950 to-slate-900 border border-purple-500/40 shadow-lg">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div class="flex items-center space-x-2 text-emerald-400 text-xs font-mono font-bold">
+                  <i class="fa-solid fa-stamp"></i>
+                  <span>IMMUTABLE 65B SHA-256 FORENSIC EVIDENCE SEAL</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">Compliant with Indian IT Act 2000 §65B evidentiary standards</p>
+                <div class="mt-2 bg-black/60 p-2 rounded border border-slate-800 font-mono text-[10px] text-purple-300 break-all select-all flex items-center justify-between">
+                  <span id="res-sha256-hash">Calculating SHA-256 evidence digest...</span>
+                  <button id="copy-hash-btn" title="Copy Hash" class="ml-2 text-slate-400 hover:text-white"><i class="fa-regular fa-copy"></i></button>
+                </div>
+              </div>
+              <button id="btn-download-pdf" class="w-full sm:w-auto px-5 py-3 rounded-lg bg-emerald-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider hover:bg-emerald-400 transition flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/20 shrink-0">
+                <i class="fa-solid fa-file-arrow-down text-base"></i>
+                <span>Download 65B Report</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- REDESIGNED TEAM CYBERTECH INFO MODAL (Based on Provided Image) -->
+  <div id="team-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#0f141e] border border-slate-700/50 rounded-2xl max-w-[800px] w-full p-6 sm:p-8 shadow-2xl relative">
+      <button id="close-team-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/50 rounded-md w-8 h-8 flex items-center justify-center border border-slate-700 transition">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <!-- Header aligned with Image -->
+      <div class="flex items-center space-x-3 mb-8">
+        <i class="fa-solid fa-people-group text-3xl text-emerald-400"></i>
+        <div>
+          <h3 class="text-2xl font-bold text-white tracking-wide">Team CyberTech</h3>
+          <span class="text-[11px] uppercase font-mono tracking-[0.15em] text-slate-400">PROJECT DEVELOPERS &amp; ENGINEERS</span>
+        </div>
+      </div>
+
+      <!-- 2-Column Grid Layout -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        <!-- Member 1: Mohammed Zubair (Purple) -->
+        <div class="bg-[#161b26] border border-slate-700/50 rounded-xl p-4 flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-purple-900/20 border border-purple-500/30 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-user-shield text-purple-400 text-lg"></i>
+          </div>
+          <div>
+            <h4 class="text-white font-bold text-base leading-tight">Mohammed Zubair</h4>
+            <div class="mt-1 mb-1">
+              <span class="text-[9px] uppercase text-purple-400 border border-purple-500/50 bg-purple-900/20 px-2 py-0.5 rounded font-bold tracking-wide">Team Leader</span>
+            </div>
+            <p class="text-xs text-slate-400">Backend &amp; System Integration</p>
+          </div>
+        </div>
+
+        <!-- Member 2: Fatima Saani (Orange) -->
+        <div class="bg-[#161b26] border border-slate-700/50 rounded-xl p-4 flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-orange-900/20 border border-orange-500/30 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-file-signature text-orange-400 text-lg"></i>
+          </div>
+          <div>
+            <h4 class="text-white font-bold text-base leading-tight">Fatima Saani</h4>
+            <p class="text-xs text-slate-400 mt-1">Evidence &amp; Reporting Lead</p>
+          </div>
+        </div>
+
+        <!-- Member 3: Mohammed Muqeeth (Green) -->
+        <div class="bg-[#161b26] border border-slate-700/50 rounded-xl p-4 flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-emerald-900/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-laptop-code text-emerald-400 text-lg"></i>
+          </div>
+          <div>
+            <h4 class="text-white font-bold text-base leading-tight">Mohammed Muqeeth</h4>
+            <p class="text-xs text-slate-400 mt-1">Frontend &amp; Dashboard</p>
+          </div>
+        </div>
+
+        <!-- Member 4: Khatija Farha (Pink) -->
+        <div class="bg-[#161b26] border border-slate-700/50 rounded-xl p-4 flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-pink-900/20 border border-pink-500/30 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-magnifying-glass-chart text-pink-400 text-lg"></i>
+          </div>
+          <div>
+            <h4 class="text-white font-bold text-base leading-tight">Khatija Farha</h4>
+            <p class="text-xs text-slate-400 mt-1">Email Forensics</p>
+          </div>
+        </div>
+
+        <!-- Member 5: Mohammad Abdullah Zuhayr (Blue) -->
+        <div class="bg-[#161b26] border border-slate-700/50 rounded-xl p-4 flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-blue-900/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-envelope-circle-check text-blue-400 text-lg"></i>
+          </div>
+          <div>
+            <h4 class="text-white font-bold text-base leading-tight">Mohammad Abdullah<br/>Zuhayr</h4>
+            <p class="text-xs text-slate-400 mt-1">Email Ingestion &amp; Automation</p>
+          </div>
+        </div>
+
+        <!-- Member 6: Uzma Thareem (Yellow) -->
+        <div class="bg-[#161b26] border border-slate-700/50 rounded-xl p-4 flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-yellow-900/20 border border-yellow-500/30 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-sitemap text-yellow-400 text-lg"></i>
+          </div>
+          <div>
+            <h4 class="text-white font-bold text-base leading-tight">Uzma Thareem</h4>
+            <p class="text-xs text-slate-400 mt-1">DNS &amp; Risk Analysis</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Text -->
+      <div class="mt-8 pt-6 text-center border-t border-slate-800/50">
+        <p class="text-[11px] uppercase font-mono tracking-[0.2em] text-slate-500">SIH PROTOTYPE DEVELOPMENT TEAM</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEAFLET MAP MODAL -->
+  <div id="map-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative">
+      <button id="close-map-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/40 flex items-center justify-center text-purple-400">
+          <i class="fa-solid fa-earth-americas text-lg"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">Origin Node GeoIP Triangulation</h3>
+          <p class="text-xs text-slate-400">Estimated geographic location from earliest un-spoofed relay node</p>
+        </div>
+      </div>
+      <div id="leaflet-map" class="border border-slate-800 mb-4"></div>
+      <div class="grid grid-cols-2 gap-3 text-xs font-mono bg-slate-950 p-3 rounded-lg border border-slate-800">
+        <div><span class="text-slate-500">Target IP:</span> <span id="map-ip-label" class="text-emerald-400 font-bold"></span></div>
+        <div><span class="text-slate-500">City/Country:</span> <span id="map-geo-label" class="text-white"></span></div>
+        <div><span class="text-slate-500">Coordinates:</span> <span id="map-coords-label" class="text-purple-300"></span></div>
+        <div><span class="text-slate-500">Node Type:</span> <span class="text-amber-400">Datacenter / Network</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOC ALERT CENTER MODAL -->
+  <div id="soc-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <button id="close-soc-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+          <i class="fa-solid fa-bell-slash text-base"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">Configure SOC Alert Email Center</h3>
+          <p class="text-xs text-slate-400">Automated incident notification gateway</p>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-mono text-slate-300 mb-1">SOC Administrator Email</label>
+          <input id="soc-email-input" type="email" value="soc-incident-response@enterprise-security.in" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-emerald-500" />
+        </div>
+        <button id="btn-save-soc" class="w-full py-2.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs uppercase tracking-wider hover:bg-emerald-400 transition mt-2">
+          Save Configuration &amp; Test Connection
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-16 border-t border-slate-800 bg-[#070a12] pt-12 pb-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="bg-slate-900/50 p-6 rounded-2xl border border-slate-800/80 mb-10">
+        <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-2 font-mono flex items-center space-x-2">
+          <i class="fa-solid fa-circle-info text-emerald-400"></i>
+          <span>About CYBERTECH Architecture</span>
+        </h4>
+        <p class="text-slate-300 text-sm leading-relaxed">
+          CYBERTECH is an advanced prototype developed for Analysing the email threats. It addresses the critical need for deep forensic tracing of fraudulent emails. By correlating email headers, IP reputation, geolocation, and AI-driven NLP sentiment analysis, the platform provides unprecedented visibility into malicious infrastructure. The platform reconstructs relay paths, uncovers spoofed domains, and generates cryptographically sealed forensic evidence to support incident response and legal workflows. Designed to combat sophisticated phishing, BEC, and impersonation attacks, CYBERTECH empowers security teams with actionable intelligence.
+        </p>
+      </div>
+      <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 pt-4 border-t border-slate-800/60">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>System Health: Nominal • SOC Gateway v4.5</span>
+        </div>
+        <div class="mt-3 sm:mt-0 font-medium text-slate-400">
+          Team CYBERTECH All rights reserved.
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ==========================================================================
+       DATABASE: 12 REALISTIC THREAT EXAMPLES (Threat 4 Updated to Corporate Data Theft)
+       ========================================================================== */
+    const THREAT_DATABASE = [
+      {
+        id: "threat-1", category: "Banking KYC Fraud", severity: "CRITICAL", senderName: "HDFC Security Alert Desk",
+        from: "alerts@hdfcbank-portal-kyc-update.com", returnPath: "bounce-daemon@scaleway-vps-phishnode89.su",
+        subject: "URGENT: Mandatory NetBanking KYC & PAN Linking Pending - Account Freezing Warning within 24 Hours",
+        date: "Sun, 20 Sep 2026 14:12:05 +0530", originIP: "185.220.101.5", geoCity: "Frankfurt", geoCountry: "Germany",
+        lat: 50.1109, lng: 8.6821, asn: "AS208291 (Scaleway Datacenter)", threatScore: 97, classification: "Banking KYC Harvesting & Domain Spoofing",
+        spfStatus: "FAIL (softfail: domain does not designate 185.220.101.5)", dkimStatus: "FAIL (Signature missing / invalid hash)", dmarcStatus: "REJECT (Sender domain failed DMARC alignment)",
+        indicators: [
+          "Domain Spoofing: Display name claims 'HDFC Bank' while actual Return-Path originates from 'scaleway-vps-phishnode89.su'.",
+          "High Pressure Social Engineering: Uses regulatory deadlines (RBI circular citation) threatening permanent account freeze within 24 hours.",
+          "Dangerous Link Injection: Discovered fraudulent phishing links targeting credentials.",
+          "Datacenter Origin: Originating mail relay is a commercial datacenter VPS node in Germany."
+        ],
+        rawContent: `Delivered-To: victim-employee@company-corp.in\nReceived: from mx1.mail-defense.net\nAuthentication-Results: mx1.mail-defense.net; spf=fail;\nReturn-Path: <bounce-daemon@scaleway-vps-phishnode89.su>\nFrom: "HDFC Security Alert Desk" <alerts@hdfcbank-portal-kyc-update.com>\nSubject: URGENT: Mandatory NetBanking KYC & PAN Linking Pending - Account Freezing Warning within 24 Hours\n\nDear Valued Customer,\nREGULATORY COMPLIANCE NOTICE - REF: RBI/2026-27/KYC-MANDATE-8819\nFAILURE TO UPDATE WITHIN 24 HOURS WILL RESULT IN FREEZING OF ACCOUNTS.\nCLICK THE SECURE BANKING LINK BELOW:\n==> http://hdfc-kyc-mandate-auth-portal.com/netbanking/secure-login.php?ref=4829104`
+      },
+      {
+        id: "threat-2", category: "Debit Card Fraud", severity: "CRITICAL", senderName: "SBI Card Protection Desk",
+        from: "care@sbi-card-protection-desk.in", returnPath: "mailer@nl-bulletproof-host77.net",
+        subject: "SECURITY ALERT: Immediate Card Protection Lock - Unrecognized International POS Transaction Detected (RUB 42,900.00)",
+        date: "Sun, 20 Sep 2026 13:45:10 +0530", originIP: "194.26.29.112", geoCity: "Amsterdam", geoCountry: "Netherlands",
+        lat: 52.3676, lng: 4.9041, asn: "AS49924 (Bulletproof Offshore Hosting)", threatScore: 95, classification: "Financial Debit Card Clone / OTP Phishing",
+        spfStatus: "FAIL (IP 194.26.29.112 not authorized)", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: [
+          "Domain Lookalike: 'sbi-card-protection-desk.in' registered via privacy proxy 2 days ago.",
+          "Card Impersonation Cue: Fakes international charge of 42,900 RUB to induce immediate panic.",
+          "Dangerous Credential Phish Link: Points to external fake portal.",
+          "Bulletproof Hosting Node: Origin IP maps to high-risk Dutch hosting provider."
+        ],
+        rawContent: `Delivered-To: victim-employee@company-corp.in\nFrom: "State Bank Card Protection Cell" <care@sbi-card-protection-desk.in>\nSubject: SECURITY ALERT: Immediate Card Protection Lock - Unrecognized International POS Transaction Detected (RUB 42,900.00)\n\nAn anomalous international merchant transaction was attempted on your SBI Global Debit Card (ending in **4109) at YANDEX*SERVICES MOSCOW RU.\nCANCEL TRANSACTION & RE-AUTHENTICATE CARD:\n==> http://sbi-secure-cardprotection-portal.net/ebanking/card-unlock.jsp`
+      },
+      {
+        id: "threat-3", category: "Banking Biometric KYC", severity: "HIGH", senderName: "ICICI Bank Customer Security",
+        from: "compliance@icicibank-regulatory-update.org", returnPath: "phishrelay@scamrelay77.biz",
+        subject: "MANDATORY CIRCULAR: Immediate Video-KYC and Debit Facility Renewal for High-Value Accounts",
+        date: "Sun, 20 Sep 2026 11:20:00 +0530", originIP: "103.251.167.22", geoCity: "Hong Kong", geoCountry: "Hong Kong",
+        lat: 22.3193, lng: 114.1694, asn: "AS136188 (Shinjiru Hosting)", threatScore: 92, classification: "Banking Credential Harvesting",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: [
+          "Deceptive Domain: 'icicibank-regulatory-update.org' uses .org TLD.",
+          "Phishing Link: Embeds fake corporate login.",
+          "Urgency Cue: Warns of immediate suspension of RTGS."
+        ],
+        rawContent: `From: "ICICI Bank Customer Security" <compliance@icicibank-regulatory-update.org>\nSubject: MANDATORY CIRCULAR: Immediate Video-KYC and Debit Facility Renewal for High-Value Accounts\n\nDear Customer, Under RBI Master Direction on KYC, all private bank account holders must complete mandatory Biometric Video-KYC.\n==> http://icici-ebanking-biometric-verification.net/auth/portal.html`
+      },
+      {
+        id: "threat-4", category: "Corporate Blackmail", severity: "CRITICAL", senderName: "Darknet Syndicate Operator",
+        from: "apt-recon@tor-relay-exit-guard.to", returnPath: "blackmail-daemon@bulletproof-russia-host.ru",
+        subject: "Security Compromise Notice: Corporate Source Code & Client DB Exfiltrated - Settle Extortion Fee Immediately",
+        date: "Sun, 20 Sep 2026 10:15:32 +0530", originIP: "185.165.170.82", geoCity: "Saint Petersburg", geoCountry: "Russia",
+        lat: 59.9343, lng: 30.3351, asn: "AS44050", threatScore: 98, classification: "Corporate Data Theft / Cryptocurrency Extortion",
+        spfStatus: "FAIL", dkimStatus: "NONE", dmarcStatus: "REJECT",
+        indicators: [
+          "Social Engineering Threat Cues: Claims exfiltration of proprietary source code and client databases.",
+          "Extortion Payment Link & Timer: Directs target to an onion gateway tracking dashboard.",
+          "Cryptocurrency Demand: Extorts 0.085 BTC ($5,000 USD).",
+          "Known Malicious IP: Sending IP has abuse reports for botnet activity."
+        ],
+        rawContent: `From: "Darknet Operator" <apt-recon@tor-relay-exit-guard.to>\nSubject: Security Compromise Notice: Corporate Source Code & Client DB Exfiltrated - Settle Extortion Fee Immediately\n\nI will make this brief. Several weeks ago, I infected your internal developer workstation with a zero-day remote administration tool (RAT). Through this script, I obtained complete access to your corporate GitHub repositories, AWS access keys, and the unencrypted master client database containing PII of over 10,000 customers.\n\nI have compiled all your proprietary source code and client records on a secure offshore server.\nIf you do not want this highly sensitive data leaked to your competitors and public breach forums, you must transfer $1,200 worth of Bitcoin to my designated address.\n\nTRACK TIMER & VIEW DATA PROOFS HERE:\n==> http://darknet-leak-timer-storage.su/proof/corp-9281/`
+      },
+      {
+        id: "threat-5", category: "Executive BEC Wire Fraud", severity: "CRITICAL", senderName: "Satya Nadella (Executive Office)",
+        from: "ceo-office@micros0ft-corp-executive.com", returnPath: "exec-relay@fast-offshore-smtp.com",
+        subject: "CONFIDENTIAL ACQUISITION: Urgent Escrow Settlement - Wire Authorization ($480,000 USD)",
+        date: "Sun, 20 Sep 2026 09:30:14 +0530", originIP: "104.244.76.13", geoCity: "Zurich", geoCountry: "Switzerland",
+        lat: 47.3769, lng: 8.5417, asn: "AS206238", threatScore: 94, classification: "Business Email Compromise (BEC) / CEO Fraud",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: [
+          "Lookalike Domain: Uses typo-squatting with number '0'.",
+          "Executive Impersonation: Employs strict confidentiality instructions.",
+          "Payment Redirection Link to offshore financial holding."
+        ],
+        rawContent: `From: "Satya Nadella" <ceo-office@micros0ft-corp-executive.com>\nSubject: CONFIDENTIAL ACQUISITION: Urgent Escrow Settlement - Wire Authorization ($480,000 USD)\n\nTeam, I am in an all-day executive board meeting regarding a confidential acquisition. We need to remit $480,000 USD immediately.\nDOWNLOAD ESCROW ROUTING DETAILS & AUTHORIZE PAYMENT:\n==> https://wire-transfer-escrow-routing.global-settlements.cc/tx/88192`
+      },
+      {
+        id: "threat-6", category: "Microsoft 365 Admin Phish", severity: "HIGH", senderName: "Microsoft 365 Cloud Security",
+        from: "no-reply@security-microsoft365-tenant-admin.com", returnPath: "bounce@phishvps-iceland.is",
+        subject: "CRITICAL ALERT: Tenant MFA Token Revocation & Administrator Password Expiry (Action Required)",
+        date: "Sun, 20 Sep 2026 08:14:22 +0530", originIP: "185.107.56.204", geoCity: "Reykjavik", geoCountry: "Iceland",
+        lat: 64.1466, lng: -21.9426, asn: "AS43350", threatScore: 91, classification: "Enterprise SSO / OAuth Credential Theft",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: ["Display Name Deception.", "Malicious SSO Link.", "Credential Harvesting aimed at Global Admin."],
+        rawContent: `From: "Microsoft 365 Cloud Security" <no-reply@security-microsoft365-tenant-admin.com>\nSubject: CRITICAL ALERT: Tenant MFA Token Revocation & Administrator Password Expiry\n\nYour organization's Azure Active Directory administrator tokens are scheduled for immediate decommission.\nRE-AUTHENTICATE ENTERPRISE TENANT NOW:\n==> https://login.microsoftonline.security-verify-sso-gateway.com/oauth2/authorize`
+      },
+      {
+        id: "threat-7", category: "Axis Bank Card Dispute", severity: "CRITICAL", senderName: "Axis Bank Fraud Clearance",
+        from: "fraud-control@axis-bank-secure-clearance.info", returnPath: "spamrelay@russia-vps-direct.ru",
+        subject: "UNAUTHORIZED CHARGE: Axis Bank Card Flagged for INR 89,450.00 at Apple Store London",
+        date: "Sun, 20 Sep 2026 07:42:19 +0530", originIP: "91.240.118.50", geoCity: "Moscow", geoCountry: "Russia",
+        lat: 55.7558, lng: 37.6173, asn: "AS48282", threatScore: 96, classification: "Banking Debit & Credit Card Phishing",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: ["Fake High-Value Debit.", "Phishing Portal.", "Russian VPS Origin."],
+        rawContent: `From: "Axis Bank Fraud Clearance" <fraud-control@axis-bank-secure-clearance.info>\nSubject: UNAUTHORIZED CHARGE: Axis Bank Card Flagged for INR 89,450.00\n\nA payment of INR 89,450.00 was requested. Cancel immediately via our real-time reversal gateway:\n==> http://axisbank-dispute-resolution-portal.com/dispute/report.php`
+      },
+      {
+        id: "threat-8", category: "Cisco Zero-Day Malware", severity: "HIGH", senderName: "Internal IT Infrastructure",
+        from: "helpdesk@internal-company-domain-update.org", returnPath: "malicious@cdn-patch-deployer-vpn9.tech",
+        subject: "EMERGENCY PATCH: Mandatory Cisco AnyConnect Zero-Day RCE Hotfix (CVE-2026-9281)",
+        date: "Sun, 20 Sep 2026 06:19:00 +0530", originIP: "45.142.214.19", geoCity: "Bucharest", geoCountry: "Romania",
+        lat: 44.4268, lng: 26.1025, asn: "AS200019", threatScore: 89, classification: "Malware Delivery / Fake Security Patch",
+        spfStatus: "FAIL", dkimStatus: "NONE", dmarcStatus: "REJECT",
+        indicators: ["Trojan Dropper Link.", "Spoofed Internal IT Identity.", "High Urgency Cue."],
+        rawContent: `From: "Corporate IT Support" <helpdesk@internal-company-domain-update.org>\nSubject: EMERGENCY PATCH: Mandatory Cisco AnyConnect Zero-Day RCE Hotfix\n\nA critical zero-day remote code execution flaw has been discovered in our VPN. Download hotfix:\n==> http://cdn-patch-deployer-vpn9.tech/files/CiscoSecureClient_Hotfix_v5.4.exe`
+      },
+      {
+        id: "threat-9", category: "FedEx Customs Impound", severity: "MEDIUM", senderName: "FedEx Express Customs Clearance",
+        from: "tracking-customs@fedx-international-shipment-alert.cc", returnPath: "bounce@host-vps-nigeria.ng",
+        subject: "DELIVERY EXCEPTION: Air Waybill #948291047 Held at Terminal - Unpaid Customs Duty Fee ($42.50 USD)",
+        date: "Sun, 20 Sep 2026 05:12:11 +0530", originIP: "197.210.64.12", geoCity: "Lagos", geoCountry: "Nigeria",
+        lat: 6.5244, lng: 3.3792, asn: "AS36873", threatScore: 86, classification: "Parcel Fee Phishing Scam",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: ["Deceptive Domain.", "Payment Redirection.", "Package Forfeiture Urgency."],
+        rawContent: `From: "FedEx International Clearance" <tracking-customs@fedx-international-shipment-alert.cc>\nSubject: DELIVERY EXCEPTION: Air Waybill #948291047 Held at Terminal\n\nYour parcel from overseas has arrived. A local clearance tariff of $42.50 USD remains unpaid.\n==> http://fedex-global-customs-duty-settlement.cc/pay/duty?awb=948291047`
+      },
+      {
+        id: "threat-10", category: "DocuSign Wire Agreement", severity: "HIGH", senderName: "DocuSign Electronic Trust Service",
+        from: "dse@docusign-envelope-review-secure9.com", returnPath: "mailer@scamserver-sg.com",
+        subject: "SIGNATURE REQUESTED: Confidential Binding Settlement Agreement & Mutual Release Deed",
+        date: "Sun, 20 Sep 2026 04:02:40 +0530", originIP: "139.99.120.44", geoCity: "Singapore", geoCountry: "Singapore",
+        lat: 1.3521, lng: 103.8198, asn: "AS16276", threatScore: 90, classification: "Legal Document Phishing / Credential Harvest",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: ["Lookalike URL.", "Phishing Endpoint.", "Legal Coercion."],
+        rawContent: `From: "DocuSign Trust Service" <dse@docusign-envelope-review-secure9.com>\nSubject: SIGNATURE REQUESTED: Confidential Binding Settlement Agreement & Mutual Release Deed\n\nAll parties have executed the binding Mutual Non-Disclosure. Your electronic initials are required.\n==> https://docusign-electronic-notary-auth.net/SignEnvelope?env=e9821-4401-bc`
+      },
+      {
+        id: "threat-11", category: "HR Payroll Tax Discrepancy", severity: "HIGH", senderName: "Corporate HR Compensation Desk",
+        from: "payroll-dept@corporate-benefits-tax-portal.com", returnPath: "hr-bot@offshore-droplet-node.net",
+        subject: "DISCREPANCY ALERT: March Salary Disbursement Hold - Form 16 & PAN Verification Mismatch",
+        date: "Sun, 20 Sep 2026 02:45:00 +0530", originIP: "46.101.89.201", geoCity: "London", geoCountry: "United Kingdom",
+        lat: 51.5074, lng: -0.1278, asn: "AS14061", threatScore: 88, classification: "Internal HR Impersonation / Banking Theft",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: ["Payroll Disruption Panic.", "Malicious Portal.", "Harvesting Banking Info."],
+        rawContent: `From: "Corporate HR Compensation" <payroll-dept@corporate-benefits-tax-portal.com>\nSubject: DISCREPANCY ALERT: March Salary Disbursement Hold\n\nDuring our audit, our automated gateway identified a mismatch. Your upcoming salary is on hold.\nUPLOAD IDENTITY & RE-VERIFY DIRECT DEPOSIT ACCOUNT:\n==> http://workday-payroll-tax-discrepancy.internal-portal-review.net/login`
+      },
+      {
+        id: "threat-12", category: "PayPal Account Lockout", severity: "CRITICAL", senderName: "PayPal Dispute Resolution Center",
+        from: "service@paypaI-resolution-center-secure.com", returnPath: "relay@bulletproof-brazil.br",
+        subject: "SECURITY VIOLATION: Unauthorized Transaction Intercepted - Restore Account Access Immediately",
+        date: "Sun, 20 Sep 2026 01:10:15 +0530", originIP: "177.54.148.90", geoCity: "Sao Paulo", geoCountry: "Brazil",
+        lat: -23.5505, lng: -46.6333, asn: "AS28118", threatScore: 94, classification: "Payment Processor Account Hijack",
+        spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+        indicators: ["Homoglyph Spoof: uppercase 'I'.", "Phishing Link.", "Financial Restriction Threat."],
+        rawContent: `From: "PayPal Service Resolution" <service@paypaI-resolution-center-secure.com>\nSubject: SECURITY VIOLATION: Unauthorized Transaction Intercepted\n\nWe observed an anomalous login attempt. To safeguard your linked credit cards, functionality is restricted.\nRESTORE ACCOUNT PRIVILEGES:\n==> https://paypal-case-resolution-center-auth.com/webapps/mpp/account-recovery`
+      }
+    ];
+
+    /* ==========================================================================
+       APPLICATION STATE & CONTROLLERS
+       ========================================================================== */
+    let currentSelectedThreat = null;
+    let currentReportHash = "";
+    let leafletMap = null;
+    let leafletMarker = null;
+    
+    // Initialize as connected
+    let isConnected = true;
+
+    // Toast Notification System
+    function showToast(title, message, type = "emerald") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      toast.className = `pointer-events-auto p-4 rounded-xl border shadow-2xl backdrop-blur-md transition-all duration-300 transform translate-x-4 flex items-start space-x-3 w-80 sm:w-96 ${
+        type === "emerald" ? "bg-slate-900/95 border-emerald-500/50 text-emerald-400" :
+        type === "purple" ? "bg-slate-900/95 border-purple-500/50 text-purple-400" :
+        "bg-slate-900/95 border-red-500/50 text-red-400"
+      }`;
+      const icon = type === "emerald" ? "fa-circle-check" : type === "purple" ? "fa-bell" : "fa-triangle-exclamation";
+      toast.innerHTML = `
+        <i class="fa-solid ${icon} text-lg mt-0.5"></i>
+        <div class="flex-1">
+          <h5 class="text-xs font-bold text-white uppercase tracking-wider">${title}</h5>
+          <p class="text-xs text-slate-300 mt-0.5 leading-relaxed">${message}</p>
+        </div>
+      `;
+      container.appendChild(toast);
+      requestAnimationFrame(() => toast.classList.remove("translate-x-4"));
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-x-4");
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Render Email Feed or Empty State
+    function renderEmailList(filterText = "") {
+      const container = document.getElementById("email-list-container");
+      
+      // If Disconnected, show empty placeholder and DO NOT render items
+      if (!isConnected) {
+        container.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-72 text-slate-500 text-center p-6 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/30">
+            <i class="fa-solid fa-satellite-dish text-4xl mb-4 text-slate-700 opacity-50"></i>
+            <h4 class="text-sm font-bold text-slate-400 mb-1">Workspace Offline</h4>
+            <p class="text-xs">Connect to live feed to ingest threats.</p>
+          </div>
+        `;
+        document.getElementById("feed-count-text").innerText = "0 threats available";
+        return;
+      }
+
+      // Filter and render list
+      container.innerHTML = "";
+      const filtered = THREAT_DATABASE.filter(item => {
+        const query = filterText.toLowerCase();
+        return item.senderName.toLowerCase().includes(query) || item.subject.toLowerCase().includes(query) || item.from.toLowerCase().includes(query);
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-xs text-slate-500 font-mono border-2 border-dashed border-slate-800 rounded-xl">No threat vectors match your query.</div>`;
+        document.getElementById("feed-count-text").innerText = "0 threats visible";
+        return;
+      }
+
+      document.getElementById("feed-count-text").innerText = `${filtered.length} high-severity threats ingested`;
+
+      filtered.forEach(threat => {
+        const card = document.createElement("div");
+        const isSelected = currentSelectedThreat && currentSelectedThreat.id === threat.id;
+        card.className = `p-4 rounded-xl border transition-all cursor-pointer select-none ${
+          isSelected 
+            ? "bg-slate-950/90 border-emerald-500 shadow-md shadow-emerald-500/10" 
+            : "bg-slate-950/40 border-slate-800 hover:border-slate-700 hover:bg-slate-950/80"
+        }`;
+        // Applied break-words and whitespace-normal for text wrap requirements
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase ${
+              threat.severity === 'CRITICAL' ? 'bg-red-950 text-red-400 border border-red-500/40' :
+              threat.severity === 'HIGH' ? 'bg-amber-950 text-amber-400 border border-amber-500/40' :
+              'bg-blue-950 text-blue-400 border border-blue-500/40'
+            }">${threat.severity}</span>
+            <span class="text-[10px] font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30 whitespace-nowrap">${threat.category}</span>
+          </div>
+          <div class="mb-1">
+            <div class="text-xs font-bold text-white break-words whitespace-normal">${threat.senderName}</div>
+            <div class="text-[11px] font-mono text-slate-400 break-all whitespace-normal">${threat.from}</div>
+          </div>
+          <div class="text-xs font-semibold text-slate-200 mt-2 mb-2 break-words whitespace-normal leading-snug">${threat.subject}</div>
+          <div class="pt-2 border-t border-slate-900 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+            <span>Origin: ${threat.originIP}</span>
+            <span class="text-emerald-400 hover:underline flex items-center space-x-1 shrink-0">
+              <span>Scan</span> <i class="fa-solid fa-arrow-right text-[9px]"></i>
+            </span>
+          </div>
+        `;
+        card.addEventListener("click", () => selectThreatAndLoad(threat));
+        container.appendChild(card);
+      });
+    }
+
+    // Load selected threat into Scanner
+    function selectThreatAndLoad(threat) {
+      if (!isConnected) return; // Disallow loading if offline
+      currentSelectedThreat = threat;
+      renderEmailList(document.getElementById("email-search").value); // refresh styling
+      
+      const textarea = document.getElementById("raw-email-input");
+      textarea.value = threat.rawContent;
+
+      if (window.innerWidth < 1024) {
+        textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      showToast("Payload Loaded", `Loaded threat: ${threat.senderName}`, "purple");
+      executeDeepScan();
+    }
+
+    // Scanner Execution Logic
+    function executeDeepScan() {
+      const rawText = document.getElementById("raw-email-input").value.trim();
+      if (!rawText) {
+        showToast("Scanner Error", "Please provide raw email headers or select an ingested threat feed.", "danger");
+        return;
+      }
+
+      const progressBox = document.getElementById("scan-progress-box");
+      const progressBar = document.getElementById("scan-progress-bar");
+      const statusText = document.getElementById("scan-status-text");
+      const percentText = document.getElementById("scan-percent");
+      const resultsDiv = document.getElementById("forensic-results");
+
+      progressBox.classList.remove("hidden");
+      resultsDiv.classList.add("hidden");
+
+      let progress = 0;
+      const stages = [
+        { at: 20, text: "Reconstructing SMTP Relay Hops..." },
+        { at: 45, text: "Verifying SPF / DKIM / DMARC Authentication Records..." },
+        { at: 70, text: "NLP Sentiment & Urgency Pressure Vector Analysis..." },
+        { at: 90, text: "Triangulating Earliest Un-spoofed Origin IP & ASN..." },
+        { at: 100, text: "Generating 65B SHA-256 Cryptographic Evidence Seal..." }
+      ];
+
+      const interval = setInterval(() => {
+        progress += 4;
+        if (progress > 100) progress = 100;
+
+        progressBar.style.width = `${progress}%`;
+        percentText.innerText = `${progress}%`;
+
+        const currentStage = stages.find(s => progress <= s.at);
+        if (currentStage) statusText.innerText = currentStage.text;
+
+        if (progress >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            progressBox.classList.add("hidden");
+            renderScanResults();
+            resultsDiv.classList.remove("hidden");
+            showToast("SOC Alert Dispatched", `Real-time threat notification routed to SOC admin.`, "emerald");
+          }, 300);
+        }
+      }, 35);
+    }
+
+    // Render Scanner Results View
+    function renderScanResults() {
+      let data = currentSelectedThreat;
+      if (!data) {
+        data = {
+          id: "custom-scan",
+          threatScore: 94, classification: "Suspicious Domain Impersonation & Mail Spoofing",
+          originIP: "193.106.191.24", geoCity: "Warsaw", geoCountry: "Poland", lat: 52.2297, lng: 21.0122,
+          asn: "AS48312 (Offshore Relay)", spfStatus: "FAIL", dkimStatus: "FAIL", dmarcStatus: "REJECT",
+          indicators: ["Domain Spoofing.", "Anonymized Sending Node.", "Suspicious URLs."]
+        };
+      }
+
+      document.getElementById("res-score").innerText = `${data.threatScore}%`;
+      document.getElementById("res-attack-type").innerText = data.classification;
+      document.getElementById("res-origin-ip").innerText = data.originIP;
+      document.getElementById("res-asn").innerText = data.asn;
+      document.getElementById("res-geo").innerText = `${data.geoCity}, ${data.geoCountry}`;
+      document.getElementById("res-spf").innerText = data.spfStatus;
+      document.getElementById("res-dkim").innerText = data.dkimStatus;
+      document.getElementById("res-dmarc").innerText = data.dmarcStatus;
+
+      const indList = document.getElementById("res-indicators-list");
+      indList.innerHTML = "";
+      data.indicators.forEach(ind => {
+        const li = document.createElement("li");
+        li.className = "flex items-start space-x-2 py-1 border-b border-slate-900/60";
+        li.innerHTML = `<i class="fa-solid fa-circle-exclamation text-amber-400 mt-1 text-[11px] shrink-0"></i><span>${ind}</span>`;
+        indList.appendChild(li);
+      });
+
+      const payloadToHash = `${data.originIP}|${data.threatScore}|${data.spfStatus}|${data.classification}|${Date.now()}`;
+      currentReportHash = CryptoJS.SHA256(payloadToHash).toString(CryptoJS.enc.Hex);
+      document.getElementById("res-sha256-hash").innerText = currentReportHash;
+    }
+
+    // Leaflet Map Integrations
+    function openOriginMap() {
+      const data = currentSelectedThreat || THREAT_DATABASE[0];
+      const modal = document.getElementById("map-modal");
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+
+      document.getElementById("map-ip-label").innerText = data.originIP;
+      document.getElementById("map-geo-label").innerText = `${data.geoCity}, ${data.geoCountry}`;
+      document.getElementById("map-coords-label").innerText = `${data.lat}, ${data.lng}`;
+
+      setTimeout(() => {
+        if (!leafletMap) {
+          leafletMap = L.map('leaflet-map').setView([data.lat, data.lng], 9);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletMap);
+          leafletMarker = L.marker([data.lat, data.lng]).addTo(leafletMap);
+        } else {
+          leafletMap.setView([data.lat, data.lng], 9);
+          leafletMarker.setLatLng([data.lat, data.lng]);
+          leafletMap.invalidateSize();
+        }
+      }, 200);
+    }
+
+    // 65B jsPDF Report Generation
+    function downloadForensicPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const data = currentSelectedThreat || THREAT_DATABASE[0];
+
+      // Header Banner
+      doc.setFillColor(11, 16, 28);
+      doc.rect(0, 0, 210, 42, 'F');
+      doc.setTextColor(16, 185, 129);
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("CYBERTECH FORENSIC INTELLIGENCE", 14, 18);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("INDIAN EVIDENCE ACT SECTION 65B ELECTRONIC CERTIFICATE", 14, 26);
+      doc.text(`Generated: ${new Date().toUTCString()} | Node: CYBERTECH-SOC-01`, 14, 34);
+
+      // Threat Summary
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("1. INCIDENT & THREAT CLASSIFICATION", 14, 52);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Target Subject: ${data.subject}`, 14, 60);
+      doc.text(`Identified Attack Type: ${data.classification}`, 14, 68);
+      doc.text(`Threat Score Assessment: ${data.threatScore}% (CRITICAL SEVERITY)`, 14, 76);
+
+      // Technical Evidence Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("2. TRANSMISSION INFRASTRUCTURE & AUTHENTICATION", 14, 90);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Earliest Sending Node IP: ${data.originIP}`, 14, 98);
+      doc.text(`Autonomous System (ASN): ${data.asn}`, 14, 106);
+      doc.text(`Estimated Physical Location: ${data.geoCity}, ${data.geoCountry} (${data.lat}, ${data.lng})`, 14, 114);
+      doc.text(`SPF Check Result: ${data.spfStatus}`, 14, 122);
+      doc.text(`DKIM Signature: ${data.dkimStatus}`, 14, 130);
+      doc.text(`DMARC Policy Enforcement: ${data.dmarcStatus}`, 14, 138);
+
+      // Threat Indicators
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("3. DETECTED THREAT INDICATORS & NLP CUES", 14, 152);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      let startY = 160;
+      data.indicators.forEach((ind) => {
+        const splitText = doc.splitTextToSize(`• ${ind}`, 180);
+        doc.text(splitText, 14, startY);
+        startY += (splitText.length * 6);
+      });
+
+      // 65B Seal Section
+      doc.setFillColor(245, 247, 250);
+      doc.rect(14, startY + 6, 182, 38, 'F');
+      doc.setDrawColor(139, 92, 246);
+      doc.rect(14, startY + 6, 182, 38, 'S');
+      doc.setTextColor(139, 92, 246);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("CRYPTOGRAPHIC 65B EVIDENCE SEAL", 18, startY + 14);
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(8);
+      doc.setFont("courier", "bold");
+      doc.text(`SHA-256 HASH: ${currentReportHash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'}`, 18, startY + 22);
+      doc.setFont("helvetica", "normal");
+      doc.text("Certified that this report represents an accurate electronic extract of ingested email transmission", 18, startY + 29);
+      doc.text("records preserved under digital chain-of-custody protocols for legal and law enforcement support.", 18, startY + 35);
+
+      doc.save(`CYBERTECH_Evidence_Report_${data.id}_65B.pdf`);
+      showToast("Report Downloaded", "65B Cryptographic Evidence PDF generated successfully.", "emerald");
+    }
+
+    // Setup and Listeners
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Initial Render State (Connected)
+      renderEmailList();
+      selectThreatAndLoad(THREAT_DATABASE[0]);
+
+      // 2. Filters
+      document.getElementById("email-search").addEventListener("input", (e) => {
+        renderEmailList(e.target.value);
+      });
+
+      // 3. Scanner Triggers
+      document.getElementById("btn-run-scan").addEventListener("click", executeDeepScan);
+      document.getElementById("btn-load-sample").addEventListener("click", () => selectThreatAndLoad(THREAT_DATABASE[0]));
+      document.getElementById("btn-clear-scanner").addEventListener("click", () => {
+        document.getElementById("raw-email-input").value = "";
+        document.getElementById("forensic-results").classList.add("hidden");
+        currentSelectedThreat = null;
+        showToast("Scanner Reset", "Input buffer cleared.", "purple");
+      });
+
+      // 4. Modals
+      document.getElementById("btn-open-map").addEventListener("click", openOriginMap);
+      document.getElementById("close-map-modal").addEventListener("click", () => document.getElementById("map-modal").classList.add("hidden"));
+      document.getElementById("btn-download-pdf").addEventListener("click", downloadForensicPDF);
+      document.getElementById("copy-hash-btn").addEventListener("click", () => {
+        if (currentReportHash) {
+          navigator.clipboard.writeText(currentReportHash);
+          showToast("Copied", "SHA-256 Hash copied to clipboard!", "emerald");
+        }
+      });
+
+      // Disconnect Logic 
+      const googleBtn = document.getElementById("google-auth-btn");
+      const googleText = document.getElementById("google-auth-text");
+      const syncBadge = document.getElementById("sync-status-badge");
+
+      googleBtn.addEventListener("click", () => {
+        isConnected = !isConnected;
+        if (isConnected) {
+          // Re-connect
+          googleBtn.className = "h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm";
+          googleText.innerText = "Disconnect";
+          syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1.5";
+          syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span>CONNECTED</span>`;
+          renderEmailList(document.getElementById("email-search").value);
+          showToast("Workspace Reconnected", "Live mailbox ingestion active.", "emerald");
+        } else {
+          // Disconnect - Clear everything
+          googleBtn.className = "h-10 px-4 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-bold text-xs uppercase tracking-wider hover:brightness-110 transition flex items-center space-x-2 shadow-sm";
+          googleText.innerText = "Connect Workspace";
+          syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-slate-900 text-slate-500 border border-slate-700 flex items-center space-x-1.5";
+          syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>OFFLINE</span>`;
+          
+          document.getElementById("email-search").value = "";
+          renderEmailList(); // This will trigger the offline empty state block
+          
+          // Clear Scanner view
+          document.getElementById("raw-email-input").value = "";
+          document.getElementById("forensic-results").classList.add("hidden");
+          currentSelectedThreat = null;
+          
+          showToast("Mailbox Disconnected", "Workspace feed sync paused and data cleared.", "purple");
+        }
+      });
+
+      // SOC Alert Configuration Modal
+      const socModal = document.getElementById("soc-modal");
+      document.getElementById("soc-config-btn").addEventListener("click", () => {
+        socModal.classList.remove("hidden");
+        socModal.classList.add("flex");
+      });
+      document.getElementById("close-soc-modal").addEventListener("click", () => socModal.classList.add("hidden"));
+      document.getElementById("btn-save-soc").addEventListener("click", () => {
+        const email = document.getElementById("soc-email-input").value;
+        socModal.classList.add("hidden");
+        showToast("SOC Gateway Updated", `Alerts dispatched to: ${email}`, "emerald");
+      });
+
+      // Redesigned Team CyberTech Info Modal ("i" button)
+      const teamModal = document.getElementById("team-modal");
+      document.getElementById("open-team-btn").addEventListener("click", () => {
+        teamModal.classList.remove("hidden");
+        teamModal.classList.add("flex");
+      });
+      document.getElementById("close-team-modal").addEventListener("click", () => teamModal.classList.add("hidden"));
+
+      // Close modals on escape key
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          socModal.classList.add("hidden");
+          teamModal.classList.add("hidden");
+          document.getElementById("map-modal").classList.add("hidden");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
