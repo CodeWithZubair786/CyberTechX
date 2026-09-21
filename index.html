@@ -91,10 +91,16 @@
           <span class="hidden sm:inline">SOC Alert Center</span>
         </button>
 
-        <!-- Google Workspace Connect / Disconnect Toggle (Initial state: Connected) -->
-        <button id="google-auth-btn" class="h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm">
+        <!-- Connect Workspace (OAuth URL) -->
+        <button id="google-workspace-btn" class="h-10 px-4 rounded-lg bg-blue-950/80 border border-blue-500/40 text-blue-400 font-bold text-xs uppercase tracking-wider hover:bg-blue-900/60 hover:text-white transition flex items-center space-x-2 shadow-sm">
           <i class="fa-brands fa-google text-sm"></i>
-          <span id="google-auth-text">Disconnect</span>
+          <span id="google-workspace-text" class="hidden md:inline">Connect Workspace</span>
+        </button>
+
+        <!-- CyberTech Mailbox (Simulation Toggle - Starts Connected) -->
+        <button id="cybertech-mailbox-btn" class="h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm">
+          <i class="fa-solid fa-envelope-open-text text-sm"></i>
+          <span id="cybertech-mailbox-text">Disconnect Mailbox</span>
         </button>
       </div>
 
@@ -165,7 +171,7 @@
         <div class="mb-4">
           <div class="relative">
             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-xs"></i>
-            <input id="email-search" type="text" placeholder="Search 12 live attack vectors, banks, or subjects..." class="w-full pl-9 pr-4 py-2 bg-slate-950/90 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500/60 transition" />
+            <input id="email-search" type="text" placeholder="Search live attack vectors, banks, or subjects..." class="w-full pl-9 pr-4 py-2 bg-slate-950/90 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500/60 transition" />
           </div>
         </div>
 
@@ -338,7 +344,7 @@
     </div>
   </main>
 
-  <!-- REDESIGNED TEAM CYBERTECH INFO MODAL (Based on Provided Image) -->
+  <!-- TEAM CYBERTECH INFO MODAL -->
   <div id="team-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-4">
     <div class="bg-[#0f141e] border border-slate-700/50 rounded-2xl max-w-[800px] w-full p-6 sm:p-8 shadow-2xl relative">
       <button id="close-team-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/50 rounded-md w-8 h-8 flex items-center justify-center border border-slate-700 transition">
@@ -664,8 +670,9 @@
     let leafletMap = null;
     let leafletMarker = null;
     
-    // Initialize as connected
-    let isConnected = true;
+    // UI Connection States
+    let isCyberTechConnected = true; // Predefined simulation starts connected
+    let isWorkspaceConnected = false; // OAuth starts disconnected
 
     // Toast Notification System
     function showToast(title, message, type = "emerald") {
@@ -692,24 +699,37 @@
       }, 4000);
     }
 
-    // Render Email Feed or Empty State
+    // Render Email Feed or Empty State based on connection status
     function renderEmailList(filterText = "") {
       const container = document.getElementById("email-list-container");
       
-      // If Disconnected, show empty placeholder and DO NOT render items
-      if (!isConnected) {
+      // State 1: Completely Offline
+      if (!isCyberTechConnected && !isWorkspaceConnected) {
         container.innerHTML = `
           <div class="flex flex-col items-center justify-center h-72 text-slate-500 text-center p-6 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/30">
             <i class="fa-solid fa-satellite-dish text-4xl mb-4 text-slate-700 opacity-50"></i>
             <h4 class="text-sm font-bold text-slate-400 mb-1">Workspace Offline</h4>
-            <p class="text-xs">Connect to live feed to ingest threats.</p>
+            <p class="text-xs">Connect to a live feed to ingest threats.</p>
           </div>
         `;
         document.getElementById("feed-count-text").innerText = "0 threats available";
         return;
       }
 
-      // Filter and render list
+      // State 2: Waiting for OAuth Workspace (but simulation off)
+      if (isWorkspaceConnected && !isCyberTechConnected) {
+         container.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-72 text-slate-500 text-center p-6 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/30">
+            <i class="fa-solid fa-cloud-arrow-down text-4xl mb-4 text-slate-700 opacity-50"></i>
+            <h4 class="text-sm font-bold text-slate-400 mb-1">Authenticating Workspace...</h4>
+            <p class="text-xs">Awaiting OAuth callback and API ingestion.</p>
+          </div>
+        `;
+        document.getElementById("feed-count-text").innerText = "Syncing...";
+        return;
+      }
+
+      // State 3: Simulation Connected (Shows the 12 emails)
       container.innerHTML = "";
       const filtered = THREAT_DATABASE.filter(item => {
         const query = filterText.toLowerCase();
@@ -732,7 +752,6 @@
             ? "bg-slate-950/90 border-emerald-500 shadow-md shadow-emerald-500/10" 
             : "bg-slate-950/40 border-slate-800 hover:border-slate-700 hover:bg-slate-950/80"
         }`;
-        // Applied break-words and whitespace-normal for text wrap requirements
         card.innerHTML = `
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase ${
@@ -761,9 +780,9 @@
 
     // Load selected threat into Scanner
     function selectThreatAndLoad(threat) {
-      if (!isConnected) return; // Disallow loading if offline
+      if (!isCyberTechConnected) return; // Disallow loading if simulation is offline
       currentSelectedThreat = threat;
-      renderEmailList(document.getElementById("email-search").value); // refresh styling
+      renderEmailList(document.getElementById("email-search").value); 
       
       const textarea = document.getElementById("raw-email-input");
       textarea.value = threat.rawContent;
@@ -963,7 +982,7 @@
 
     // Setup and Listeners
     document.addEventListener("DOMContentLoaded", () => {
-      // 1. Initial Render State (Connected)
+      // 1. Initial Render State
       renderEmailList();
       selectThreatAndLoad(THREAT_DATABASE[0]);
 
@@ -993,37 +1012,74 @@
         }
       });
 
-      // Disconnect Logic 
-      const googleBtn = document.getElementById("google-auth-btn");
-      const googleText = document.getElementById("google-auth-text");
+      /* =========================================================
+         BUTTON 1: CYBERTECH MAILBOX (Simulation Toggle)
+         Starts Connected
+         ========================================================= */
+      const cyberTechBtn = document.getElementById("cybertech-mailbox-btn");
+      const cyberTechText = document.getElementById("cybertech-mailbox-text");
       const syncBadge = document.getElementById("sync-status-badge");
 
-      googleBtn.addEventListener("click", () => {
-        isConnected = !isConnected;
-        if (isConnected) {
-          // Re-connect
-          googleBtn.className = "h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm";
-          googleText.innerText = "Disconnect";
+      cyberTechBtn.addEventListener("click", () => {
+        isCyberTechConnected = !isCyberTechConnected;
+        
+        if (isCyberTechConnected) {
+          cyberTechBtn.className = "h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm";
+          cyberTechText.innerText = "Disconnect Mailbox";
           syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1.5";
           syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span>CONNECTED</span>`;
           renderEmailList(document.getElementById("email-search").value);
-          showToast("Workspace Reconnected", "Live mailbox ingestion active.", "emerald");
+          showToast("CyberTech Connected", "Predefined simulation active.", "emerald");
         } else {
-          // Disconnect - Clear everything
-          googleBtn.className = "h-10 px-4 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-bold text-xs uppercase tracking-wider hover:brightness-110 transition flex items-center space-x-2 shadow-sm";
-          googleText.innerText = "Connect Workspace";
-          syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-slate-900 text-slate-500 border border-slate-700 flex items-center space-x-1.5";
-          syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>OFFLINE</span>`;
+          cyberTechBtn.className = "h-10 px-4 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-bold text-xs uppercase tracking-wider hover:brightness-110 transition flex items-center space-x-2 shadow-sm";
+          cyberTechText.innerText = "CyberTech Mailbox";
+          
+          if(!isWorkspaceConnected) {
+            syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-slate-900 text-slate-500 border border-slate-700 flex items-center space-x-1.5";
+            syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>OFFLINE</span>`;
+          }
           
           document.getElementById("email-search").value = "";
-          renderEmailList(); // This will trigger the offline empty state block
-          
-          // Clear Scanner view
+          renderEmailList(); 
           document.getElementById("raw-email-input").value = "";
           document.getElementById("forensic-results").classList.add("hidden");
           currentSelectedThreat = null;
+          showToast("Mailbox Disconnected", "CyberTech simulation paused and cleared.", "purple");
+        }
+      });
+
+      /* =========================================================
+         BUTTON 2: CONNECT WORKSPACE (Google OAuth Link)
+         Starts Disconnected
+         ========================================================= */
+      const googleWorkspaceBtn = document.getElementById("google-workspace-btn");
+      const googleWorkspaceText = document.getElementById("google-workspace-text");
+      const oauthUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=587350731847-b38vfehleo917erm9aa5fmdgtjea91g1.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fcybertechx.onrender.com%2Fauth%2Fcallback&response_type=code&access_type=offline&prompt=consent%20select_account&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.modify%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.labels%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.send";
+
+      googleWorkspaceBtn.addEventListener("click", () => {
+        isWorkspaceConnected = !isWorkspaceConnected;
+        
+        if (isWorkspaceConnected) {
+          // Open OAuth link in a new tab
+          window.open(oauthUrl, '_blank');
           
-          showToast("Mailbox Disconnected", "Workspace feed sync paused and data cleared.", "purple");
+          googleWorkspaceBtn.className = "h-10 px-4 rounded-lg bg-red-950/80 border border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-wider hover:bg-red-900/60 transition flex items-center space-x-2 shadow-sm";
+          googleWorkspaceText.innerText = "Disconnect Workspace";
+          syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1.5";
+          syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span>CONNECTED</span>`;
+          renderEmailList();
+          showToast("OAuth Initiated", "Redirecting to Google Workspace authorization...", "emerald");
+        } else {
+          googleWorkspaceBtn.className = "h-10 px-4 rounded-lg bg-blue-950/80 border border-blue-500/40 text-blue-400 font-bold text-xs uppercase tracking-wider hover:bg-blue-900/60 hover:text-white transition flex items-center space-x-2 shadow-sm";
+          googleWorkspaceText.innerText = "Connect Workspace";
+          
+          if(!isCyberTechConnected) {
+            syncBadge.className = "px-2.5 py-1 rounded text-[11px] font-mono font-bold bg-slate-900 text-slate-500 border border-slate-700 flex items-center space-x-1.5";
+            syncBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>OFFLINE</span>`;
+          }
+          
+          renderEmailList();
+          showToast("Workspace Disconnected", "OAuth token cleared.", "purple");
         }
       });
 
