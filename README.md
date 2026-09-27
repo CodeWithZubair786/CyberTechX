@@ -170,4 +170,4 @@ When deploying to Render (**https://dashboard.render.com**), navigate to:
 | `access_denied` | The user clicked "Cancel" on the Google consent screen. | Normal user rejection. CyberTech shows "Gmail connection cancelled." |
 | `403 Access blocked: CyberTech has not completed the Google verification process` | The Google Cloud project is in **Testing** mode and the logging-in email is not added as a Test User. | In Google Cloud Console → **OAuth consent screen** → **Test users**, click **+ Add Users** and add your email. |
 | `Token has been expired or revoked` | The OAuth refresh token was invalidated or expired. | Click **Disconnect** in CyberTech and reconnect to generate fresh tokens. |
-| `Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET` | Environment variables are not set. | Add both keys under **Environment Variables** in Render Dashboard. |
+| `Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET` | Environment variables are not set. | Add both keys under 
